@@ -1,0 +1,161 @@
+---
+title: "Project_Model"
+author: "Lin Chen"
+date: "7/28/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Open the CSV data and change (gender, hypertension, heart_disease, ever_married, work_type,
+Residence_type, stroke) as factor
+```{r}
+Stroke = read.csv("/Users/chenlin/Desktop/UT/Summer/Predictive\ Models/Predictive-Model-R/cleanedData.csv")
+Stroke$gender <- as.factor(Stroke$gender)
+Stroke$hypertension <- as.factor(Stroke$hypertension)
+Stroke$heart_disease <- as.factor(Stroke$heart_disease)
+Stroke$ever_married <- as.factor(Stroke$ever_married)
+Stroke$work_type <- as.factor(Stroke$work_type)
+Stroke$Residence_type <- as.factor(Stroke$Residence_type)
+Stroke$stroke <- as.factor(Stroke$stroke)
+
+Stroke = Stroke[,-c(1, 8)]
+attach(Stroke)
+```
+
+Import rpart package, and define train, validation and test data set.
+```{r train, validation,test}
+library(rpart)
+library(randomForest)
+library(gbm)
+
+set.seed(123)
+n = nrow(Stroke)
+n1 = floor(n/2) #length of train
+n2 = floor(n/4) #length of validation
+n3 = n - n1 - n2
+new_order = sample(1:n, n)
+Stroketrain = Stroke[new_order[1:n1],]
+Strokeval = Stroke[new_order[n1+1:n2],]
+Stroketest = Stroke[new_order[n1+n2+1:n3],]
+```
+
+First, try classification tree model
+```{r classification tree}
+big.tree = rpart(stroke ~.,method="class",data=Stroketrain,
+                 control=rpart.control(minsplit=5,cp=.0001)
+                 ) 
+nbig = length(unique(big.tree$where))
+cat('size of big tree: ',nbig,'\n')
+
+cpvec = big.tree$cptable[,"CP"] #cp values to try
+ntree = length(cpvec) #number of cv values = number of trees fit.
+iltree = rep(0,ntree) #in-sample loss
+oltree = rep(0,ntree) #out-of-sample loss
+sztree = rep(0,ntree) #size of each tree
+temptree = prune(big.tree,cp=cpvec[1],type='class')
+for(i in 1:ntree) {
+  cat('tree i: ',i,'\n')
+  temptree = prune(big.tree,cp=cpvec[i])
+  ifit = predict(temptree, Stroketrain, type = 'class')
+  il_table = table(ifit, Stroketrain$stroke)
+  iltree[i] = (il_table[1] + il_table[4])/nrow(Stroketrain)
+  sztree[i] = length(unique(temptree$where))
+  ofit = predict(temptree,Strokeval,type = 'class') #use val to predict
+  ol_table = table(ofit, Strokeval$stroke)
+  oltree[i] = (ol_table[1] + ol_table[4])/nrow(Strokeval)
+}
+
+```
+
+tree visualization plot
+```{r}
+rgl = range(c(iltree,oltree))
+plot(range(sztree),rgl,type='n',xlab='tree size',ylab='correction rate')
+points(sztree,iltree,pch=15,col='red')
+points(sztree,oltree,pch=16,col='blue')
+legend("topright",legend=c('in-sample','out-of-sample'),lwd=3,col=c('red','blue'))
+
+#variable importance plot
+plot(temptree$variable.importance)
+```
+
+use Stroketest data set to see the correction rate of tree model
+```{r}
+iitree = which.min(oltree)
+thetree = prune(big.tree,cp=cpvec[iitree])
+thetreepred = predict(thetree,Stroketest, type='class')
+test_table = table(thetreepred, Stroketest$stroke)
+correction_rate = (test_table[1] + test_table[4])/nrow(Stroketest)
+test_table
+correction_rate # 0.9735
+```
+
+
+Second, Random Forest model
+```{r}
+library(randomForest)
+
+p = ncol(Stroketrain) - 1
+mtryv = c(p, floor(sqrt(p)))
+ntreev = c(100,500)
+parmrf = expand.grid(mtryv,ntreev)
+colnames(parmrf)=c('mtry','ntree') #rename the parmrf
+nset = nrow(parmrf) 
+olrf = rep(0,nset)
+ilrf = rep(0,nset)
+rffitv = vector('list',nset)
+
+for(i in 1:nset) {
+  cat('doing rf ',i,' out of ',nset,'\n')
+  temprf = randomForest(stroke~.,data=Stroketrain,mtry=parmrf[i,1],ntree=parmrf[i,2])
+  ifit = predict(temprf)
+  ofit=predict(temprf,newdata=Strokeval)
+  if_table = table(ifit, Stroketrain$stroke)
+  ol_table = table(ofit, Strokeval$stroke)
+  ilrf[i] = sum(diag(if_table))/nrow(Stroketrain)
+  olrf[i] = sum(diag(ol_table))/nrow(Strokeval)
+  rffitv[[i]]=temprf
+}
+```
+
+print correction rate
+```{r}
+print (cbind(parmrf, ilrf, olrf))
+
+```
+
+```{r}
+iirf=which.min(olrf)
+therf = rffitv[[iirf]]
+therfpred=predict(therf,newdata=Stroketest)
+test_table = table(therfpred, Stroketest$stroke)
+correction_rate = sum(diag(test_table))/nrow(Stroketest)
+correction_rate
+```
+
+
+Third, boosting model
+```{r}
+set.seed(1)
+idv = c(2,5)
+ntv = c(1000,5000)
+lamv=c(.001,.2)
+parmb = expand.grid(idv,ntv,lamv)
+colnames(parmb) = c('tdepth','ntree','lam')
+print(parmb)
+nset = nrow(parmb)
+olb = rep(0,nset)
+ilb = rep(0,nset)
+bfitv = vector('list',nset)
+tempboost = gbm(stroke~.,data=Stroketrain,distribution='bernoulli',n.trees=5000,interaction.depth=4, shrinkage = 0.01)
+
+```
+print correction rate
+```{r}
+print (cbind(parmb, ilb, olb))
+```
+
+
