@@ -1,0 +1,132 @@
+---
+title: "ModelBalancedData"
+author: "Lin Chen"
+date: "7/30/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Open the CSV data and change (gender, hypertension, heart_disease, ever_married, work_type,
+Residence_type, stroke) as factor
+```{r}
+Stroke = read.csv("/Users/chenlin/Desktop/UT/Summer/Predictive\ Models/Predictive-Model-R/cleanedData.csv")
+Stroke$gender <- as.factor(Stroke$gender)
+Stroke$hypertension <- as.factor(Stroke$hypertension)
+Stroke$heart_disease <- as.factor(Stroke$heart_disease)
+Stroke$ever_married <- as.factor(Stroke$ever_married)
+Stroke$work_type <- as.factor(Stroke$work_type)
+Stroke$Residence_type <- as.factor(Stroke$Residence_type)
+#Stroke$stroke <- as.factor(Stroke$stroke)
+
+Stroke = Stroke[,-c(1, 8)]
+attach(Stroke)
+```
+
+select 500 rows of stroke and 1000 rows of unstroke
+```{r}
+train_stroke_full <- Stroke[Stroke$stroke==1,]
+set.seed(123)
+order1 <- sample(nrow(train_stroke_full), 500)
+train_stroke <- train_stroke_full[order1, ]
+test_stroke <- train_stroke_full[-order1, ]
+train_nonstroke_full <- Stroke[Stroke$stroke==0, ]
+order2 <- sample(nrow(train_nonstroke_full), 1000)
+train_nonstroke <- train_nonstroke_full[order2, ]
+test_nonstroke <- train_nonstroke_full[-order2, ]
+train <- rbind(train_nonstroke, train_stroke)
+test <- rbind(test_nonstroke, test_stroke)
+order3 <- sample(nrow(test), floor(nrow(test)/2))
+validation <- test[order3, ]
+test <- test[-order3, ]
+```
+
+Use tree model
+```{r}
+library(tree)
+library(rpart)
+
+train$stroke <- as.factor(train$stroke)
+test$stroke <- as.factor(test$stroke)
+
+#find the big.tree
+big.tree <- rpart(stroke ~., data=train, method='class',
+                  control=rpart.control(minsplit=5,cp=.0001))
+nbig = length(unique(big.tree$where))
+cat('size of big tree: ',nbig,'\n')
+#------------------------------------------------------------
+#big.tree$cptable
+cpvec = big.tree$cptable[,"CP"] #cp values to try
+ntree = length(cpvec) #number of cv values = number of trees fit.
+iltree = rep(0,ntree) #in-sample loss
+oltree = rep(0,ntree) #out-of-sample loss
+sztree = rep(0,ntree) #size of each tree
+for(i in 1:ntree) {
+  cat('tree i: ',i,'\n')
+  temptree = prune(big.tree,cp=cpvec[i])
+  sztree[i] = length(unique(temptree$where))
+  ifit = predict(temptree, train, type='class')
+  iltree[i] = sum(table(train$stroke, ifit)[2, 2])/nrow(train[train$stroke==1,]) #in-sample
+  ofit = predict(temptree,validation,type = 'class') #use val to predict
+  oltree[i] = sum(table(validation$stroke, ofit)[2, 2])/nrow(validation[validation$stroke==1,]) #val loss
+}
+```
+
+
+Use tree model to test
+```{r}
+iitree = which.max(oltree)
+thetree = prune(big.tree,cp=cpvec[iitree])
+thetreepred = predict(thetree,test, type='class')
+test_table = table(thetreepred, test$stroke)
+correction_rate = test_table[2, 2]/nrow(test[test$stroke == 1,])
+correction_rate
+```
+
+Variable important of tree model
+```{r}
+plot(thetree,uniform=TRUE)
+text(thetree, digits=3)
+```
+
+RandomForest model
+```{r}
+library(randomForest)
+set.seed(456)
+p=ncol(train)-1
+mtryv = c(1, 2, p, 4, 5,sqrt(p))
+ntreev = c(100,1000)
+parmrf = expand.grid(mtryv,ntreev)
+colnames(parmrf)=c('mtry','ntree') #rename the parmrf
+nset = nrow(parmrf) 
+olrf = rep(0,nset)
+ilrf = rep(0,nset)
+rffitv = vector('list',nset)
+for(i in 1:nset) {
+  cat('doing rf ',i,' out of ',nset,'\n')
+  temprf = randomForest(stroke~.,data=train,mtry=parmrf[i,1],ntree=parmrf[i,2])
+  ifit = predict(temprf)
+  ofit=predict(temprf,newdata=validation)
+  olrf[i] = sum(table(validation$stroke, ofit)[2, 2])/nrow(validation[validation$stroke==1,])
+  ilrf[i] = sum(table(train$stroke, ifit)[2, 2])/nrow(train[train$stroke==1,])
+  rffitv[[i]]=temprf
+}
+```
+
+use randomForest model to test
+```{r}
+iirf=which.max(olrf)
+therf = rffitv[[iirf]]
+therfpred=predict(therf,newdata=test)
+correction_rate = sum(table(test$stroke, therfpred)[2, 2])/nrow(test[test$stroke==1,])
+correction_rate
+```
+
+variable importance
+```{r}
+varImpPlot(therf)
+```
+
+

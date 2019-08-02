@@ -20,7 +20,6 @@ Stroke$ever_married <- as.factor(Stroke$ever_married)
 Stroke$work_type <- as.factor(Stroke$work_type)
 Stroke$Residence_type <- as.factor(Stroke$Residence_type)
 Stroke$stroke <- as.factor(Stroke$stroke)
-
 Stroke = Stroke[,-c(1, 8)]
 attach(Stroke)
 ```
@@ -55,10 +54,12 @@ ntree = length(cpvec) #number of cv values = number of trees fit.
 iltree = rep(0,ntree) #in-sample loss
 oltree = rep(0,ntree) #out-of-sample loss
 sztree = rep(0,ntree) #size of each tree
-temptree = prune(big.tree,cp=cpvec[1],type='class')
+temptree_list = rep(0, ntree)
 for(i in 1:ntree) {
   cat('tree i: ',i,'\n')
   temptree = prune(big.tree,cp=cpvec[i])
+  cat(length(unique(temptree$where)), '\n')
+  cat(cpvec[i], '\n')
   ifit = predict(temptree, Stroketrain, type = 'class')
   il_table = table(ifit, Stroketrain$stroke)
   iltree[i] = (il_table[1] + il_table[4])/nrow(Stroketrain)
@@ -84,7 +85,8 @@ plot(temptree$variable.importance)
 
 use Stroketest data set to see the correction rate of tree model
 ```{r}
-iitree = which.min(oltree)
+iitree = which.max(oltree)
+
 thetree = prune(big.tree,cp=cpvec[iitree])
 thetreepred = predict(thetree,Stroketest, type='class')
 test_table = table(thetreepred, Stroketest$stroke)
@@ -128,7 +130,7 @@ print (cbind(parmrf, ilrf, olrf))
 ```
 
 ```{r}
-iirf=which.min(olrf)
+iirf = which.min(olrf)
 therf = rffitv[[iirf]]
 therfpred=predict(therf,newdata=Stroketest)
 test_table = table(therfpred, Stroketest$stroke)
@@ -150,7 +152,7 @@ nset = nrow(parmb)
 olb = rep(0,nset)
 ilb = rep(0,nset)
 bfitv = vector('list',nset)
-tempboost = gbm(stroke~.,data=Stroketrain,distribution='bernoulli',n.trees=5000,interaction.depth=4, shrinkage = 0.01)
+tempboost = gbm(stroke~.,data=Stroketrain,distribution='bernoulli',n.trees=5000,interaction.depth=2, shrinkage = 0.01)
 
 ```
 print correction rate
