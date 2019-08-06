@@ -130,3 +130,57 @@ varImpPlot(therf)
 ```
 
 
+Bagging model
+```{r}
+library(randomForest)
+set.seed(1011)
+p=ncol(train)-1
+mtryv = c(p) #use maximum biggest one
+ntreev = c(100,1000, 5000)
+parmrf = expand.grid(mtryv,ntreev)
+colnames(parmrf)=c('mtry','ntree') #rename the parmrf
+nset = nrow(parmrf) 
+olrf = rep(0,nset)
+ilrf = rep(0,nset)
+rffitv = vector('list',nset)
+for(i in 1:nset) {
+  cat('doing rf ',i,' out of ',nset,'\n')
+  temprf = randomForest(stroke~.,data=train,mtry=parmrf[i,1],ntree=parmrf[i,2])
+  ifit = predict(temprf)
+  ofit=predict(temprf,newdata=validation)
+  olrf[i] = sum(table(validation$stroke, ofit)[2, 2])/nrow(validation[validation$stroke==1,])
+  ilrf[i] = sum(table(train$stroke, ifit)[2, 2])/nrow(train[train$stroke==1,])
+  rffitv[[i]]=temprf
+}
+```
+
+
+```{r}
+iirf=which.max(olrf)
+therf = rffitv[[iirf]]
+therfpred=predict(therf,newdata=test)
+correction_rate = sum(table(test$stroke, therfpred)[2, 2])/nrow(test[test$stroke==1,])
+table(therfpred,test$stroke)
+correction_rate
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
