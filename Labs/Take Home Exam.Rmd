@@ -1,0 +1,537 @@
+---
+title: "Predictive Models Take Home Exam"
+author: "Lin Chen"
+date: "7/29/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Chapter2 # 10
+(a)Answers: There are 506 rows and 14 columns. The rows represent each record and the columns represent features.
+```{r Chapter2 Question 10 (a)}
+library(MASS)
+Boston
+?Boston #506 rows and 14 columns
+```
+
+(b)Answers: relationship between crime rate per capita and other variables don't seem to be linear
+```{r Chapter2 Question 10 (b)}
+pairs(Boston)
+```
+
+
+(c)Answers: there are some relationship between crim and other variables except chas.
+Crim seems to spike when (1) zn is close to 0 (2) indus is close to 20 etc (We can see it from the graph)
+```{r Chapter2 Question 10 (c)}
+library(ggplot2)
+library(reshape2)
+crimbelt <- melt(Boston, id="crim") #reshape Boston data into (id, variable, value)
+ggplot(crimbelt, aes(x=value, y=crim)) +
+  facet_wrap(~variable, scales="free") + 
+  geom_point()
+(corrmatrix <- cor(Boston, use="complete.obs")[1,]) 
+corrmatrix[corrmatrix > 0.5 | corrmatrix < -0.5][-1]
+```
+
+
+(d)Answers:
+(1).(dis, crim), the nearer to employment centers, the higher per capita crime rate 
+(2).(dis, tax), the nearer to employment centers, the higher tax, but it is not obvious
+(3).(dis, tax), no obvious relationship between dis and ptraio
+```{r Chapter2 Question 10 (d)}
+require(ggplot2)
+
+ggplot(Boston, aes(x=dis, y=crim)) + geom_point() + theme_bw() 
+ggplot(Boston, aes(x=dis, y=tax)) + geom_point() + theme_bw() 
+ggplot(Boston, aes(x=dis, y=ptratio)) + geom_point() + theme_bw() 
+
+```
+
+
+(e) Answers: 35
+```{r Chapter2 Question 10 (e)}
+table(Boston$chas)[2]
+```
+
+(f) Answers: 19.05
+```{r Chapter2 Question 10 (f)}
+median(Boston$ptratio)
+```
+
+(g) Answers: 
+(1)`age`, `rad` at max
+(2)`crim`, `indus`, `nox`, `tax`, `ptratio`, `lstat` at or above 75th percentile
+(3)low for `zn`, `rm`, `dis
+```{r Chapter2 Question 10 (g)}
+lowestTown <- Boston[Boston$medv == min(Boston$medv), ]
+lowestTown
+sapply(Boston, quantile)
+```
+
+(h)Answers:
+(1) per capita crime, tax, lstat are lower in suburbs with more than 8 rooms per dwelling
+(2) medv are higher in suburbs with more than 8 rooms per dwelling
+```{r Chapter2 Question 10 (h)}
+nrow(more7 <- Boston[Boston$rm > 7, ])
+nrow(more8 <- Boston[Boston$rm > 8, ])
+
+#the first row is avg of more8
+#the second row is avg of Boston
+rbind(sapply(more8, mean), sapply(Boston, mean))
+```
+
+
+
+Chapter3 Question 15
+(a) Answer: only chas doesn't have a significant relationship with crim
+```{r Chapter3 Question 15 (a)}
+require(MASS)
+data(Boston)
+Boston$chas <- as.factor(Boston$chas)
+lmBoston <- rep()
+lmdf <- matrix(0,3,1)
+lmdetails <- function(i) {
+  cat(i,'\n')
+  lm1 <- lm(crim~ Boston[, i], data=Boston)
+  #return(summary(lm1))
+  pvalue <-(summary(lm1))$coefficients[2, 4]
+  Coefficient <-(summary(lm1))$coefficient[2, 1]
+  f <- (summary(lm1))$fstatistic
+  p <- pf(f[1],f[2],f[3],lower.tail=F)
+  lmtable <- data.frame(c(pvalue, Coefficient, p))
+  #lmdf <- rbind(lmdf, lmtable) 
+  #cat(lmdf)
+  return(lmtable)
+}
+
+for (i in 2:14){
+  result <- lmdetails(i)
+  lmdf<-cbind(lmdf, result)
+}
+lmdf <- lmdf[,-c(1)]
+rownames(lmdf) <- c('coefficient$pvalue', 'coefficient', 'model$pvalue')
+colnames(lmdf) <- colnames(Boston)[2:14]
+lmdf #only chas has no significant value with crime. Model-pvalue:0.209
+```
+
+
+(b) Answer: In the multiple regression: `indus`, `chas1`, `rm`, `age`, `tax`, `ptratio` have no significant relationship with crim. `zn`, `dis`, `rad`, `black`, `lstat`, `medv` have significant relationship with crim, thus we can reject the null hypothesis of those variables.
+```{r Chapter3 Question15 (b)}
+fit.lm <- lm(crim ~., data=Boston)
+summary(fit.lm)
+```
+
+
+(c) Answer: Fewer predictors have statistically significant impact when given the presence of other predictors. 
+```{r Chapter3 Question15 (c)}
+plot(unlist(lmdf[2, ]), (summary(fit.lm))$coefficient[,3][2:14], xlab='multiregression coefficients', ylab='univariate coefficients', col='red')
+```
+
+(d) Answer: 
+```{r Chapter3 Question15 (d), warning=FALSE, message=FALSE}
+summary(lm(crim~poly(zn,3), data=Boston))      # 1,2
+summary(lm(crim~poly(indus,3), data=Boston))   # 1,2,3
+summary(lm(crim~poly(nox,3), data=Boston))     # 1,2,3
+summary(lm(crim~poly(rm,3), data=Boston))      # 1,2
+summary(lm(crim~poly(age,3), data=Boston))     # 1,2,3
+summary(lm(crim~poly(dis,3), data=Boston))     # 1,2,3
+summary(lm(crim~poly(rad,3), data=Boston))     # 1,2
+summary(lm(crim~poly(tax,3), data=Boston))     # 1,2
+summary(lm(crim~poly(ptratio,3), data=Boston)) # 1,2,3
+summary(lm(crim~poly(black,3), data=Boston))   # 1
+summary(lm(crim~poly(lstat,3), data=Boston))   # 1,2
+summary(lm(crim~poly(medv,3), data=Boston))    # 1,2,3
+
+```
+
+
+Chapter 4 Question 10
+Answer(a): The correlation between today's return and other variables are close to zero. The correlation between volume and Year is substantial.
+```{r Chapter 4 Question 10 (a)}
+library(ISLR)
+summary(Weekly)
+cor(Weekly[, -9])
+```
+
+
+Answer (b): Only the predictor Lag2 is significant with its p-value less than 0.05.
+```{r Chapter 4 Question 10 (b)}
+attach(Weekly)
+glm.fit <- glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume,data=Weekly,family='binomial')
+summary(glm.fit)
+```
+
+Answer(c) Correction predicting rate is 56.11%, which means that training error rate is 43.89%. It is an optimistic error rate. 
+From the confusion matrix, it concludes that for weeks when the market goes up, the model is right 92.07% of the time(557/(48+557)). For weeks when the market goes down the model is right only 11.16% of the time (54/(54+430)).
+```{r Chapter 4 Question10 (c)}
+probs <- predict(glm.fit, type = "response")
+glm.pred <- rep("Down", length(probs))
+glm.pred[probs > 0.5] <- "Up"
+table(glm.pred, Direction)
+mean(glm.pred==Direction)
+```
+
+
+Answer(d)The overall prediction rate is 62.5%. For weeks that the market goes up, the prediction accuracy is 91.80% (5/(5+56)). For weeks taht the market goes down, the prediction accuracy is 21.95% (9/(34+9)).
+```{r Chapter 4 Question10 (d)}
+train <- (Year < 2009)
+Weekly.20092010 <- Weekly[!train, ]
+Direction.20092010 <- Direction[!train]
+glm.fit2 <- glm(Direction~Lag2, data=Weekly, family='binomial', subset = train)
+summary(glm.fit2)
+glm.pred2 <- rep("Down", length(Direction.20092010))
+probs2 <- predict(glm.fit2, Weekly.20092010, type='response')
+glm.pred2[probs2 > 0.5] <-'Up'
+table(glm.pred2, Direction.20092010)
+mean(glm.pred2 == Direction.20092010)
+```
+
+
+Answer(g):The percentage of correct prediction is 0.5 and the test error is 0.5.For weeks that the market goes up, the prediction accuracy is 50.82% (31/(31+30)). For weeks taht the market goes down, the prediction accuracy is 49.18% (21/(21+22)).
+```{r Chapter 4 Question10 (g)}
+library(class)
+set.seed(1)
+train.X <- as.matrix(Lag2[train])
+test.X <- as.matrix(Lag2[!train])
+Direction.X <- Direction[train]
+knn.pred <- knn(train.X, test.X, Direction.X, k=1)
+table(knn.pred, Direction.20092010)
+mean(knn.pred == Direction.20092010)
+```
+
+Answer(h): From the perspective of test error rate, logistic regression has a smaller test error rate than KNN model.
+
+Answer(i): The original logistic regression model performs best.
+```{r Chapter 4 Question10 (i)}
+#logistic regression Lag2:Lag1
+glm.fit3 <- glm(Direction ~ Lag2:Lag1, data = Weekly, family = binomial, subset = train)
+summary(glm.fit3)
+probs3 <- predict(glm.fit3, Weekly.20092010, type = "response")
+pred.glm3 <- rep("Down", length(probs3))
+pred.glm3[probs3 > 0.5] = "Up"
+table(pred.glm3, Direction.20092010)
+mean(pred.glm3 == Direction.20092010)
+
+#knn: k=10
+pred.knn2 <- knn(train.X, test.X, Direction.X, k = 10)
+table(pred.knn2, Direction.20092010)
+mean(pred.knn2 == Direction.20092010)
+
+# KNN k = 100
+pred.knn3 <- knn(train.X, test.X, Direction.X, k = 100)
+table(pred.knn3, Direction.20092010)
+mean(pred.knn3 == Direction.20092010)
+```
+
+
+
+CHapter 6 Question 9 
+Answer(a):
+```{r Chapter 6 Question10 (a)}
+library(ISLR)
+data(College)
+set.seed(11)
+#dim(College)
+train <- sample(1:nrow(College), nrow(College)/2)
+train.College <- College[train,]
+test.College <- College[-train,]
+```
+
+Answer(b):
+test MSE = 1538442
+```{r Chapter 6 Question10 (b)}
+#names(College)
+lm.fit <- lm(Apps ~., data=train.College)
+lm.pred <- predict(lm.fit, newdata=test.College)
+mean((lm.pred - test.College$Apps)^2)
+```
+
+Answer(c):
+test MSE = 1608859 under ridge regression
+```{r Chapter 6 Question10 (c)}
+#glmnet(x,y): x has to be a matrix
+train.mat <- model.matrix(Apps ~., data = train.College)
+test.mat <- model.matrix(Apps ~., data = test.College)
+grid <- 10^seq(4, -2, length=100)
+ridge.fit <- glmnet(train.mat, train.College$Apps, alpha=0, lambda=grid, thresh=1e-12)
+cv.ridge <- cv.glmnet(train.mat, train.College$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+bestlam.ridge <- cv.ridge$lambda.min
+bestlam.ridge  #best lambda: 18.738
+ridge.pred <- predict(ridge.fit, s=bestlam.ridge, newx=test.mat)
+mean((ridge.pred - test.College$Apps)^2) #1608859
+```
+
+
+Answer(d):
+test MSE under lasso = 1635280
+```{r Chapter 6 Question10 (d)}
+train.mat <- model.matrix(Apps ~., data = train.College)
+test.mat <- model.matrix(Apps ~., data = test.College)
+grid <- 10^seq(4, -2, length=100)
+lasso.fit <- glmnet(train.mat, train.College$Apps, alpha=1, lambda=grid, thresh=1e-12)
+cv.lasso <- cv.glmnet(train.mat, train.College$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso  #best lambda: 21.54435
+lasso.pred <- predict(lasso.fit, s=bestlam.lasso, newx=test.mat)
+mean((lasso.pred - test.College$Apps)^2) #1635280
+```
+
+
+Answer(e):
+The test MSE under pcr is 3014496
+```{r Chapter 6 Question10 (e)}
+library(pls)
+pcr.fit <- pcr(Apps~., data=train.College, scale=TRUE, validation='CV')
+validationplot(pcr.fit, val.type = "MSEP") #choose 10
+
+pcr.pred <- predict(pcr.fit, test.College, ncomp=10)
+mean((pcr.pred - test.College$Apps)^2) #3014496
+```
+
+Answer(f):
+The test MSE under pls is 1508987
+```{r Chapter 6 Question9 (f)}
+pls.fit <- plsr(Apps ~ ., data = train.College, scale = TRUE, validation = "CV")
+validationplot(pls.fit, val.type = "MSEP") # 10
+pls.pred <- predict(pls.fit,test.College,ncomp=10)
+mean((pls.pred - test.College$Apps)^2) #1508987
+```
+
+Answer(g):
+So the test R2 for least squares is 0.9044281, the test R2 for ridge is 0.9000536, the test R2 for lasso is 0.8984123, the test R2 for pcr is 0.8127319 and the test R2 for pls is 0.9062579. All models, except PCR, predict college applications with high accuracy.
+```{r Chapter 6 Question9 (g)}
+test.avg <- mean(test.College$Apps)
+lm.r2 <- 1 - mean((lm.pred - test.College$Apps)^2) / mean((test.avg - test.College$Apps)^2) #r2: 0.9044281
+ridge.r2 <- 1 - mean((ridge.pred - test.College$Apps)^2) / mean((test.avg - test.College$Apps)^2) #r2: 0.9000536
+
+lasso.r2 <- 1 - mean((lasso.pred - test.College$Apps)^2) / mean((test.avg - test.College$Apps)^2) #r2: 0.8984123
+pcr.r2 <- 1 - mean((pcr.pred -test.College$Apps)^2) / mean((test.avg - test.College$Apps)^2) #r2: 0.8127319
+pls.r2 <- 1 - mean((pls.pred - test.College$Apps)^2) / mean((test.avg - test.College$Apps)^2) #r2: 0.9062579
+```
+
+
+Chapter 6 Question 11
+
+```{r Chapter 6 Question11 (a)}
+library(ISLR)
+data(Boston)
+set.seed(1)
+
+#------------Best selection--------------
+predict.regsubsets <- function(object, newdata, id,...) {
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id=id)
+  xvars <- names(coefi)
+  mat[, xvars] %*% coefi
+}
+
+k = 10
+folds <- sample(1:k, dim(Boston)[1], replace=TRUE)
+cv.errors <- matrix(NA, k, 13, dimnames = list(NULL, paste(1:13)))
+for (j in 1:k) {
+  best.fit <- regsubsets(crim ~., data=Boston[folds!=j,], nvmax=13)
+  for (i in 1:13) {
+    pred <- predict.regsubsets(best.fit, Boston[folds==j,], id=i)
+    cv.errors[j, i] <- mean((Boston$crim[folds ==j]-pred)^2)
+  }
+}
+mean.cv.errors <- apply(cv.errors, 2, mean) #MSE:41.03457 
+plot(mean.cv.errors, type = "b", xlab = "Number of variables", ylab = "CV error") #cross validation select 12-variable model
+
+#-------------lasso regression------------------------
+x <- model.matrix(crim~., Boston)[, -1]
+y <- Boston$crim
+cv.out <- cv.glmnet(x, y, alpha=1, type.measure = 'mse')
+cv.out$lambda.min # lambda: 0.0467
+cv.out$cvm[cv.out$lambda==cv.out$lambda.min] #MSE:42.1347
+#--------------ridge regression------------------------
+cv.ridge.out <- cv.glmnet(x, y, alpha=0, type.measure = 'mse')
+cv.ridge.out$lambda.min # lambda: 0.5374992
+cv.ridge.out$cvm[cv.ridge.out$lambda==cv.ridge.out$lambda.min] #MSE:42.709
+
+#----------------PCR regression------------------------
+pcr.fit <- pcr(crim ~ ., data = Boston, scale = TRUE, validation = "CV")
+validationplot(pcr.fit, val.type = "MSEP")
+MSEP(pcr.fit)$val[13]
+```
+
+Answer(b): Choose the lowest cross-validation error, that's best subset selection mothod.
+
+Answer(c): No, the best subset selection method has 12 variables only.
+
+
+Chapter 8 Question 8 
+Answer(a):
+```{r Chapter 8 Question8 (a)}
+library(ISLR)
+set.seed(1)
+data(Carseats)
+train <- sample(1:nrow(Carseats), nrow(Carseats)/2)
+train.Carseats <- Carseats[train,]
+test.Carseats <- Carseats[-train,]
+```
+
+
+Answer(b):
+test error rate is 4.148897
+```{r Chapter 8 Question (b)}
+set.seed(1)
+tree.carseats <- tree(Sales~., train.Carseats)
+summary(tree.carseats)
+plot(tree.carseats)
+text(tree.carseats, pretty=0)
+yhat.carseats <- predict(tree.carseats, newdata = test.Carseats)
+mean((yhat.carseats - test.Carseats$Sales)^2)  #4.148897
+```
+
+Answer(c):
+After pruning the tree, the test MSE is 5.09085. Pruning doesn't improve the test MSE.
+```{r Chapter 8 Question8 (c)}
+set.seed(1)
+cv.carseats <- cv.tree(tree.carseats)
+plot(cv.carseats$size, cv.carseats$dev, type = "b") # minsize 8
+prune.carseats.tree <- prune.tree(tree.carseats, best=8)
+yhat <- predict(prune.carseats.tree, newdata=test.Carseats)
+mean((yhat-test.Carseats$Sales)^2) # 5.09085
+```
+
+Answer(d):
+Test MSE is 2.614642. Price and ShelveLoc may be the two most important variables.
+```{r Chapter 8 Question8 (d)}
+library(randomForest)
+set.seed(1)
+m = ncol(train.Carseats) - 1
+bag.Carseats <- randomForest(Sales ~., data=train.Carseats, mtry=m, ntree=500, importance=TRUE)
+yhat.bag.carseats <- predict(bag.Carseats, newdata=test.Carseats)
+mean((yhat.bag.carseats - test.Carseats$Sales)^2)  #2.614642
+importance(bag.Carseats)
+
+```
+
+Answer(e):
+Test MSE is 3.237463. Price and ShelveLoc may be the two most important variables.
+```{r Chapter8 Question8 (e)}
+library(randomForest)
+set.seed(1)
+m = floor(ncol(train.Carseats) /3)
+rf.Carseats <- randomForest(Sales ~., data=train.Carseats, ntry=3, ntree=500, importance=TRUE)
+yhat.rf.carseats <- predict(rf.Carseats, newdata=test.Carseats)
+mean((yhat.rf.carseats - test.Carseats$Sales)^2)
+importance(rf.Carseats) #3.237463
+
+```
+
+
+Chapter 8 Question11
+Answer(a):
+```{r Chapter 8 Question11 (a)}
+library(ISLR)
+data(Caravan)
+Caravan$Purchase <- ifelse(Caravan$Purchase == "Yes", 1, 0)
+mask <- c(1:1000)
+train <- Caravan[mask, ]
+test <- Caravan[-mask, ]
+
+```
+
+
+Answer(b):
+`PPERSAUT` and `MKOOPKLA` are the two most important variables.
+```{r Chapter 8 Question11 (b)}
+library(gbm)
+boost.Caravan <- gbm(Purchase ~., train, n.tree=1000, shrinkage=0.01, distribution='bernoulli')
+summary(boost.Caravan)
+```
+
+
+Answer(c):
+```{r}
+#--------------------boosting ----------------------------
+boosting.Carseats.prob <- predict(boost.Caravan, test, n.trees = 1000, type='response')
+boosing.pred <- ifelse(boosting.Carseats.prob > 0.2, 1, 0)
+table(boosing.pred, test$Purchase)
+table(boosing.pred, test$Purchase)[2,2]/sum(table(boosing.pred, test$Purchase)[,2])
+#----------------------KNN---------------------------------
+train.X <- as.matrix(train)
+test.X <- as.matrix(test)
+train.Y <- train$Purchase
+knn.pred <- knn(train.X, test.X,train.Y, k=1 )
+table(knn.pred, test$Purchase)
+table(knn.pred, test$Purchase)[2,2]/sum(table(knn.pred, test$Purchase)[,2])
+
+#----------------------Logistic regression-----------------
+logit.fit <- glm(Purchase~., data=train, family='binomial')
+logic.probs <- predict(logit.fit, newdata=test, type='response')
+logic.pred <- ifelse(logic.probs > 0.2, 1, 0)
+table(logic.pred, test$Purchase)
+table(logic.pred, test$Purchase)[2,2]/sum(table(logic.pred, test$Purchase)[,2])
+```
+
+
+
+
+#--------------Problem Sets---------------------
+
+#--------------Beauty Pays----------------------
+
+(1) Holding other factors constant, an instructor with high beautyScore may receive higher course rating. Similar, if the instructor is non-native speaker and has short tenure track may receive lower rating. Instructors goes to lower class and are female may receive lower rating. 
+```{r Beauty Pays Question1}
+Beauty <- read.csv("/Users/chenlin/Downloads/BeautyData.csv")
+names(Beauty)
+attach(Beauty)
+beauty.fit <- lm(CourseEvals ~., data=Beauty)
+summary(beauty.fit)
+```
+
+```{r Beauty Pays Question1}
+Are beautiful people indeed good instructors? We cannot just use linear model to answer this question.
+```
+
+
+
+#-------------Housing Price Structure------------------
+(1)From the output, the `BrickYes` variable is positively significant. Thus, there is a premium for brick houses when holding other factors constant.
+```{r results='hide', message=FALSE, warning=FALSE}
+housing <- read.csv("/Users/chenlin/Downloads/MidCity.csv")
+names(housing)
+housing$Nbhd <- as.factor(housing$Nbhd)
+housing$Brick <- as.factor(housing$Brick)
+attach(housing)
+housing.fit <- lm(Price ~.-Home, data=housing)
+summary(housing.fit)
+```
+
+
+(2)From the above output, the Nbhd3 is positively significant. Thus, there is a premium for houses in neighhorhood 3.
+
+
+(3)From the output, the interaction term between N3 and BrickYes is positively significant at 5% level. This is an extra premium for brick houses in neighborhood 3.
+```{r results='hide', message=FALSE, warning=FALSE}
+N2.mask <- housing[housing$Nbhd==2,]
+N2 <- ifelse(housing$Nbhd %in% c(2), 1,0)
+N3.mask <- housing[housing$Nbhd==3,]
+N3 <- ifelse(housing$Nbhd %in% c(3), 1,0)
+housing <- cbind(housing, N2, N3)
+housing.fit2 <- lm(Price ~. -Home-Nbhd+N3:Brick, data=housing)
+summary(housing.fit2)
+```
+
+(4) Yes, we can do this because N2 is not significant. It is reasonable to conclude that the parameter of N2 could be zero.
+
+#----------------What causes what?-------------------
+(1) There isn't a straighforward causal relationship between crime rate and number of cops. To investigate this problem, we have to collect more information and data.
+
+(2) By a natural experiment. They collected the data on crime in DC and related to the days when it was high alert status. Government has to put more cops when the day is high alert status and it has nothing to do with crime rate. After controlling ridership, High Alert is negatively significant and it means lower crime rate.
+
+(3) Controlling the traffic load. If the criminal is not hanging out at the day, the crime rate is obviously lower.
+
+(4) Using interaction terms between locations and high alert days show that the reducing effect is only clear in district 1 but not 2.
+
+
+
+
+
